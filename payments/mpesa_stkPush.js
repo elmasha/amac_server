@@ -103,7 +103,7 @@ router.post("/mpesa_stk_push", access, _urlencoded, function (req, res) {
         PartyA: phoneNumber,
         PartyB: shortCode,
         PhoneNumber: phoneNumber,
-        CallBackURL:"http://102.166.154.20:9000/payment/callback",
+        CallBackURL:"https://balanced-ambition-production.up.railway.app/payment/callback",
         AccountReference: "AMAC Voting booth",
         TransactionDesc:
           transaction_type === "vote",
