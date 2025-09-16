@@ -125,8 +125,7 @@ router.post("/mpesa_stk_push", access, _urlencoded, function (req, res) {
           charge_id,
         };
       }
-     console.log("ID:"  , category_id);s
-     console.log("📲 STK push response:"  , body);
+      console.log("📲 STK push response:"  , body);
       res.status(200).json(body);
     
     }
