@@ -65,12 +65,12 @@ const paymentMetaStore = {};
 // --------------------------------- //
 // 📲 STK PUSH
 // --------------------------------- //
-let phoneNumber,amount,user_id,candidate_id,charge_id,transaction_type;
+let phoneNumber,amount,user_id,category_id,charge_id,transaction_type;
 router.post("/mpesa_stk_push", access, _urlencoded, function (req, res) {
    phoneNumber = req.body.phone;
    amount = req.body.amount;
    user_id = req.body.user_id;
-   candidate_id = req.body.candidate_id ; // 👈 only if vote
+   category_id = req.body.category_id ; // 👈 only if vote
    charge_id = req.body.charge_id ; // 👈 only if payment
    transaction_type = req.body.transaction_type; // "vote" or "payment"
 
@@ -121,11 +121,11 @@ router.post("/mpesa_stk_push", access, _urlencoded, function (req, res) {
         paymentMetaStore[body.CheckoutRequestID] = {
           transaction_type,
           user_id,
-          candidate_id,
+          category_id,
           charge_id,
         };
       }
-     console.log("ID:"  , candidate_id);
+     console.log("ID:"  , category_id);s
      console.log("📲 STK push response:"  , body);
       res.status(200).json(body);
     
@@ -171,7 +171,7 @@ router.post("/callback", async function (req, res) {
     const metaKey = callback.CheckoutRequestID;
     const paymentMeta = paymentMetaStore[metaKey] || {};
 
-    const { transaction_type, user_id, candidate_id, charge_id } = paymentMeta;
+    const { transaction_type, user_id, category_id, charge_id } = paymentMeta;
 
     // --- Save Payment ---
     const sql = `
@@ -202,11 +202,11 @@ router.post("/callback", async function (req, res) {
       // --- If this was a VOTE, record it ---
      
         const voteSql = `
-          INSERT INTO votes (user_id, candidate_id, transaction_id, vote_date)
+          INSERT INTO votes (user_id, category_id, transaction_id, vote_date)
           VALUES (?, ?, ?, ?)
         `;
 
-        const voteValues = [user_id, candidate_id, transID, transdate];
+        const voteValues = [user_id, category_id, transID, transdate];
 
         db.query(voteSql, voteValues, (voteErr, voteResult) => {
           if (voteErr) {
