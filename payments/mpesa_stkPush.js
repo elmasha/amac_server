@@ -138,89 +138,89 @@ router.post("/callback", async function (req, res) {
   console.log(".......... 📩 STK Callback ..................");
   console.log("RAW CALLBACK BODY:", JSON.stringify(req.body, null, 2));
 
-  // // ✅ Immediately tell Safaricom "we got it"
-  // res.json({ ResultCode: 0, ResultDesc: "Accepted" });
+  // ✅ Immediately tell Safaricom "we got it"
+  res.json({ ResultCode: 0, ResultDesc: "Accepted" });
 
-  // try {
-  //   const callback = req.body.Body?.stkCallback;
-  //   if (!callback) {
-  //     console.error("❌ No stkCallback found in body");
-  //     return;
-  //   }
+  try {
+    const callback = req.body.Body?.stkCallback;
+    if (!callback) {
+      console.error("❌ No stkCallback found in body");
+      return;
+    }
 
-  //   // ❌ Failed transaction
-  //   if (callback.ResultCode !== 0) {
-  //     console.warn("⚠️ Transaction failed:", callback.ResultDesc);
-  //     return;
-  //   }
+    // ❌ Failed transaction
+    if (callback.ResultCode !== 0) {
+      console.warn("⚠️ Transaction failed:", callback.ResultDesc);
+      return;
+    }
 
-  //   const metadata = callback.CallbackMetadata;
-  //   if (!metadata) {
-  //     console.error("❌ No CallbackMetadata found");
-  //     return;
-  //   }
+    const metadata = callback.CallbackMetadata;
+    if (!metadata) {
+      console.error("❌ No CallbackMetadata found");
+      return;
+    }
 
-  //   const amount = metadata.Item.find((i) => i.Name === "Amount")?.Value;
-  //   const transID = metadata.Item.find((i) => i.Name === "MpesaReceiptNumber")?.Value;
-  //   const phone = metadata.Item.find((i) => i.Name === "PhoneNumber")?.Value;
-  //   const transdate = new Date();
+    const amount = metadata.Item.find((i) => i.Name === "Amount")?.Value;
+    const transID = metadata.Item.find((i) => i.Name === "MpesaReceiptNumber")?.Value;
+    const phone = metadata.Item.find((i) => i.Name === "PhoneNumber")?.Value;
+    const transdate = new Date();
 
-  //   // 🔑 Match back to original request
-  //   const metaKey = callback.CheckoutRequestID;
-  //   const paymentMeta = paymentMetaStore[metaKey] || {};
+    // 🔑 Match back to original request
+    const metaKey = callback.CheckoutRequestID;
+    const paymentMeta = paymentMetaStore[metaKey] || {};
 
-  //   const { transaction_type, user_id, candidate_id, charge_id } = paymentMeta;
+    const { transaction_type, user_id, candidate_id, charge_id } = paymentMeta;
 
-  //   // --- Save Payment ---
-  //   const sql = `
-  //     INSERT INTO payments (
-  //       charge_id, payment_date, amount_paid,
-  //       payment_method, transaction_id, payment_status, phone_number
-  //     ) VALUES (?, ?, ?, ?, ?, ?, ?)
-  //   `;
+    // --- Save Payment ---
+    const sql = `
+      INSERT INTO payments (
+        charge_id, payment_date, amount_paid,
+        payment_method, transaction_id, payment_status, phone_number
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `;
 
-  //   const values = [
-  //     charge_id || null,
-  //     transdate,
-  //     amount,
-  //     "Mpesa",
-  //     transID,
-  //     "Completed",
-  //     phone || null
-  //   ];
+    const values = [
+      charge_id || null,
+      transdate,
+      amount,
+      "Mpesa",
+      transID,
+      "Completed",
+      phone || null
+    ];
 
-  //   db.query(sql, values, (err, result) => {
-  //     if (err) {
-  //       console.error("❌ Error saving payment:", err.message);
-  //       return;
-  //     }
+    db.query(sql, values, (err, result) => {
+      if (err) {
+        console.error("❌ Error saving payment:", err.message);
+        return;
+      }
 
-  //     console.log("✅ Payment saved:", result);
+      console.log("✅ Payment saved:", result);
 
-  //     // --- If this was a VOTE, record it ---
-  //     if (transaction_type === "vote" && candidate_id) {
-  //       const voteSql = `
-  //         INSERT INTO votes (user_id, candidate_id, transaction_id, vote_date)
-  //         VALUES (?, ?, ?, ?)
-  //       `;
+      // --- If this was a VOTE, record it ---
+      if (transaction_type === "vote" && candidate_id) {
+        const voteSql = `
+          INSERT INTO votes (user_id, candidate_id, transaction_id, vote_date)
+          VALUES (?, ?, ?, ?)
+        `;
 
-  //       const voteValues = [user_id, candidate_id, transID, transdate];
+        const voteValues = [user_id, candidate_id, transID, transdate];
 
-  //       db.query(voteSql, voteValues, (voteErr, voteResult) => {
-  //         if (voteErr) {
-  //           console.error("❌ Error saving vote:", voteErr.message);
-  //           return;
-  //         }
-  //         console.log("🗳️ Vote recorded:", voteResult);
-  //       });
-  //     }
+        db.query(voteSql, voteValues, (voteErr, voteResult) => {
+          if (voteErr) {
+            console.error("❌ Error saving vote:", voteErr.message);
+            return;
+          }
+          console.log("🗳️ Vote recorded:", voteResult);
+        });
+      }
 
-  //     // ✅ Clean up memory store
-  //     delete paymentMetaStore[metaKey];
-  //   });
-  // } catch (err) {
-  //   console.error("❌ Callback handling error:", err.message);
-  // }
+      // ✅ Clean up memory store
+      delete paymentMetaStore[metaKey];
+    });
+  } catch (err) {
+    console.error("❌ Callback handling error:", err.message);
+  }
 });
 
 
