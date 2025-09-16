@@ -1,7 +1,6 @@
 const express = require("express");
 const router = express.Router();
-import express from "express";
-import { getResults } from "../controllers/resultsController.js";
+const { getResults } =  require("../controllers/voteControllers.js");
 
 router.get("/results", getResults);
 

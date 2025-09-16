@@ -3,7 +3,7 @@ const redisClient = require("../config/redis");
 
 
 // Get full results with Redis caching
-export const getResults = async (req, res) => {
+exports.getResults = async (req, res) => {
   try {
     const cacheKey = "election_results";
 
