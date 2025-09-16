@@ -70,8 +70,8 @@ router.post("/mpesa_stk_push", access, _urlencoded, function (req, res) {
    phoneNumber = req.body.phone;
    amount = req.body.amount;
    user_id = req.body.user_id;
-   candidate_id = req.body.candidate_id || null; // 👈 only if vote
-   charge_id = req.body.charge_id || null; // 👈 only if payment
+   candidate_id = req.body.candidate_id ; // 👈 only if vote
+   charge_id = req.body.charge_id ; // 👈 only if payment
    transaction_type = req.body.transaction_type; // "vote" or "payment"
 
   let endpoint =
