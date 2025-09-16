@@ -18,6 +18,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 app.use("/api/nominee",  require("./routes/nomineeRoutes"));
 app.use("/api/categories", require("./routes/categoryRoutes"));
+app.use("/api/votes", require("./routes/voteRoutes"));
 app.use("/payment", require("./payments/mpesa_stkPush"));
 
 
