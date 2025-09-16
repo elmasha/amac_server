@@ -65,13 +65,14 @@ const paymentMetaStore = {};
 // --------------------------------- //
 // 📲 STK PUSH
 // --------------------------------- //
+let phoneNumber,amount,user_id,candidate_id,charge_id,transaction_type;
 router.post("/mpesa_stk_push", access, _urlencoded, function (req, res) {
-  const phoneNumber = req.body.phone;
-  const amount = req.body.amount;
-  const user_id = req.body.user_id;
-  const candidate_id = req.body.candidate_id || null; // 👈 only if vote
-  const charge_id = req.body.charge_id || null; // 👈 only if payment
-  const transaction_type = req.body.transaction_type; // "vote" or "payment"
+   phoneNumber = req.body.phone;
+   amount = req.body.amount;
+   user_id = req.body.user_id;
+   candidate_id = req.body.candidate_id || null; // 👈 only if vote
+   charge_id = req.body.charge_id || null; // 👈 only if payment
+   transaction_type = req.body.transaction_type; // "vote" or "payment"
 
   let endpoint =
     "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest";
@@ -198,7 +199,7 @@ router.post("/callback", async function (req, res) {
       console.log("✅ Payment saved:", result);
 
       // --- If this was a VOTE, record it ---
-      if (transaction_type === "vote" && candidate_id) {
+     
         const voteSql = `
           INSERT INTO votes (user_id, candidate_id, transaction_id, vote_date)
           VALUES (?, ?, ?, ?)
@@ -213,7 +214,7 @@ router.post("/callback", async function (req, res) {
           }
           console.log("🗳️ Vote recorded:", voteResult);
         });
-      }
+      
 
       // ✅ Clean up memory store
       delete paymentMetaStore[metaKey];
