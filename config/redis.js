@@ -3,12 +3,9 @@ require('dotenv').config();
 
 // Create Redis client using REDIS_URL (from Railway)
 const client = createClient({
-  url: process.env.REDIS_URL,
-  socket: {
-    tls: true,
-    rejectUnauthorized: false
-  }
+  url: process.env.REDIS_URL,  // use full URL
 });
+
 // Event: Connected
 client.on('connect', () => {
   console.log('✅ Redis connected successfully');
