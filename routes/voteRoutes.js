@@ -4,4 +4,4 @@ const { getResults } =  require("../controllers/voteControllers.js");
 
 router.get("/results", getResults);
 
-export default router;
+module.exports = router;
