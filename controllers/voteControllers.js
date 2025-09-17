@@ -1,6 +1,43 @@
 const db = require("../config/db.js") ;
 const redisClient =require("../config/redis.js") ;
 
+
+
+// Get votes grouped by category and nominee
+exports.getVotesSummary = async (req, res) => {
+  try {
+    // 🔑 check cache first
+    const cacheKey = "votes:summary";
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return res.json(JSON.parse(cached));
+    }
+
+    // ✅ fetch from MySQL
+    const [rows] = await db.promise().query(`
+      SELECT 
+        c.id AS category_id,
+        c.name AS category_name,
+        n.id AS nominee_id,
+        n.name AS nominee_name,
+        COUNT(v.id) AS total_votes
+      FROM votes v
+      JOIN nominees n ON v.nominee_id = n.id
+      JOIN categories c ON n.category_id = c.id
+      GROUP BY c.id, n.id
+      ORDER BY c.id, total_votes DESC
+    `);
+
+    // cache results for 30s
+    await redisClient.setEx(cacheKey, 30, JSON.stringify(rows));
+
+    res.json(rows);
+  } catch (err) {
+    console.error("❌ Error fetching votes:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
 exports.getResults = async (req, res) => {
   try {
     const cacheKey = "election_results";
