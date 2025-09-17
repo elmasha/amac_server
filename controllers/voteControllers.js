@@ -18,7 +18,7 @@ exports.getVotesSummary = async (req, res) => {
       SELECT 
         c.id AS category_id,
         c.name AS category_name,
-        n.id AS nominee_id,
+        n.candidate_id AS nominee_id,
         n.name AS nominee_name,
         COUNT(v.id) AS total_votes
       FROM votes v
