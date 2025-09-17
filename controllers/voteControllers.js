@@ -1,31 +1,29 @@
-const pool = require("../config/db");
-const redisClient = require("../config/redis");
+const db = require("../config/db.js") ;
+const redisClient =require("../config/redis.js") ;
 
-
-// Get full results with Redis caching
 exports.getResults = async (req, res) => {
   try {
     const cacheKey = "election_results";
 
-    // 1️⃣ Try Redis cache first
+    // 1️⃣ Try Redis first
     const cached = await redisClient.get(cacheKey);
     if (cached) {
       console.log("✅ Results served from Redis cache");
       return res.json(JSON.parse(cached));
     }
 
-    // 2️⃣ Query MySQL with promise pool
-    const [rows] = await pool.query(`
+    // 2️⃣ Query MySQL
+    const [rows] = await db.query(`
       SELECT 
           cat.id AS category_id,
           cat.name AS category_name,
-          c.id AS candidate_id,
-          c.name AS candidate_name,
+          n.id AS nominee_id,
+          n.name AS nominee_name,
           COUNT(v.id) AS vote_count
-      FROM candidates c
-      LEFT JOIN categories cat ON c.category_id = cat.id
-      LEFT JOIN votes v ON v.candidate_id = c.id
-      GROUP BY cat.id, cat.name, c.id, c.name
+      FROM nominees n
+      LEFT JOIN categories cat ON n.category_id = cat.id
+      LEFT JOIN votes v ON v.nominee_id = n.id
+      GROUP BY cat.id, cat.name, n.id, n.name
       ORDER BY cat.id, vote_count DESC
     `);
 
@@ -35,20 +33,20 @@ exports.getResults = async (req, res) => {
         acc[row.category_id] = {
           category_id: row.category_id,
           category_name: row.category_name,
-          candidates: [],
+          nominees: []
         };
       }
-      acc[row.category_id].candidates.push({
-        candidate_id: row.candidate_id,
-        candidate_name: row.candidate_name,
-        vote_count: row.vote_count,
+      acc[row.category_id].nominees.push({
+        nominee_id: row.nominee_id,
+        nominee_name: row.nominee_name,
+        vote_count: row.vote_count
       });
       return acc;
     }, {});
 
     const finalResults = Object.values(results);
 
-    // 4️⃣ Save to Redis for 60s
+    // 4️⃣ Cache in Redis for 60s
     await redisClient.setEx(cacheKey, 60, JSON.stringify(finalResults));
 
     console.log("✅ Results fetched from DB and cached");
