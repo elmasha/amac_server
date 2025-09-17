@@ -1,7 +1,4 @@
 const mysql = require('mysql2');
-require('dotenv').config();
-
-const mysql = require("mysql2");
 const mysqlPromise = require("mysql2/promise");
 require("dotenv").config();
 
