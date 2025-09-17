@@ -26,13 +26,7 @@ connection.connect((err) => {
   console.log('✅ MySQL connected successfully');
 });
 
-pool.connect((err) => {
-  if (err) {
-    console.error('❌ pool connection failed:', err.message);
-    return;
-  }
-  console.log('✅ pool connected successfully');
-});
+
 
 module.exports = {  connection, pool };
 
