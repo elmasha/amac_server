@@ -8,7 +8,7 @@ exports.getVotesSummary = async (req, res) => {
   try {
     // 🔑 check cache first
     const cacheKey = "votes:summary";
-    const cached = await redis.get(cacheKey);
+    const cached = await redisClient.get(cacheKey);
     if (cached) {
       return res.json(JSON.parse(cached));
     }
