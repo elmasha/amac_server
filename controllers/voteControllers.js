@@ -16,14 +16,14 @@ exports.getVotesSummary = async (req, res) => {
     // ✅ fetch from MySQL
     const [rows] = await db.promise().query(`
       SELECT 
-        c.id AS category_id,
-        c.name AS category_name,
-        n.candidate_id AS nominee_id,
-        n.name AS nominee_name,
-        COUNT(v.id) AS total_votes
-      FROM votes v
-      JOIN nominees n ON v.nominee_id = n.id
+      c.id AS category_id,
+      c.name AS category_name,
+      n.id AS nominee_id,
+      n.name AS nominee_name,
+      COUNT(v.id) AS total_votes
+      FROM nominees n
       JOIN categories c ON n.category_id = c.id
+      LEFT JOIN votes v ON v.candidate_id = n.id
       GROUP BY c.id, n.id
       ORDER BY c.id, total_votes DESC
     `);
