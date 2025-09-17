@@ -2,6 +2,70 @@ const db = require("../config/db.js") ;
 const redisClient =require("../config/redis.js") ;
 
 
+exports.getNomineeResults = async (req, res) => {
+  try {
+    const cacheKey = "nominee_results";
+
+    // 1️⃣ Check Redis cache
+    const cached = await redisClient.get(cacheKey);
+    if (cached) {
+      console.log("✅ Results served from Redis");
+      return res.json(JSON.parse(cached));
+    }
+
+    // 2️⃣ Query MySQL if no cache
+    const [rows] = await db.promise().query(`
+      SELECT 
+        c.id AS category_id,
+        c.name AS category_name,
+        n.id AS nominee_id,
+        n.name AS nominee_name,
+        COUNT(v.id) AS total_votes,
+        ROUND(
+          (COUNT(v.id) / NULLIF(
+            (SELECT COUNT(v2.id) 
+             FROM votes v2 
+             JOIN nominees n2 ON v2.candidate_id = n2.id 
+             WHERE n2.category_id = c.id), 0
+          ) * 100), 2
+        ) AS percentage
+      FROM nominees n
+      JOIN categories c ON n.category_id = c.id
+      LEFT JOIN votes v ON v.candidate_id = n.id
+      GROUP BY c.id, c.name, n.id, n.name
+      ORDER BY c.id, total_votes DESC
+    `);
+
+    // 3️⃣ Group nominees under categories
+    const results = rows.reduce((acc, row) => {
+      let category = acc.find(c => c.category_id === row.category_id);
+      if (!category) {
+        category = {
+          category_id: row.category_id,
+          category_name: row.category_name,
+          nominees: []
+        };
+        acc.push(category);
+      }
+      category.nominees.push({
+        nominee_id: row.nominee_id,
+        nominee_name: row.nominee_name,
+        total_votes: row.total_votes,
+        percentage: row.percentage
+      });
+      return acc;
+    }, []);
+
+    // 4️⃣ Save to Redis (expires in 60s)
+    await redisClient.setEx(cacheKey, 60, JSON.stringify(results));
+
+    console.log("✅ Results fetched from DB & cached");
+    res.json(results);
+  } catch (err) {
+    console.error("❌ Error fetching nominee results:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
 
 // Get votes grouped by category and nominee
 exports.getVotesSummary = async (req, res) => {
