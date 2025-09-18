@@ -177,11 +177,10 @@ router.post("/callback", async function (req, res) {
 
       console.log("✅ Payment saved:", result);
 
-      // --- If this was a VOTE, record it ---
-      if (transaction_type === "vote") {
+  
         const voteSql = `
           INSERT INTO votes (user_id, candidate_id, transaction_id, vote_date, vote_count) 
-          VALUES (?, ?, ?, ?, ?)   -- ⭐ CHANGE: add vote_count
+          VALUES (?, ?, ?, ?, ?) 
         `;
 
         const voteValues = [user_id, candidate_id, transID, transdate, vote_count];
@@ -190,7 +189,7 @@ router.post("/callback", async function (req, res) {
           if (voteErr) return console.error("❌ Error saving vote:", voteErr.message);
           console.log("🗳️ Vote recorded:", voteResult);
         });
-      }
+      
 
       delete paymentMetaStore[metaKey]; // ✅ Clean memory
     });
