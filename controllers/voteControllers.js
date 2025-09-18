@@ -20,10 +20,10 @@ exports.getNomineeResults = async (req, res) => {
         c.name AS category_name,
         n.id AS nominee_id,
         n.name AS nominee_name,
-        COUNT(v.id) AS total_votes,
+        IFNULL(SUM(v.vote_count), 0) AS total_votes,  -- ✅ use SUM instead of COUNT
         ROUND(
-          (COUNT(v.id) / NULLIF(
-            (SELECT COUNT(v2.id) 
+          (IFNULL(SUM(v.vote_count), 0) / NULLIF(
+            (SELECT SUM(v2.vote_count) 
              FROM votes v2 
              JOIN nominees n2 ON v2.candidate_id = n2.id 
              WHERE n2.category_id = c.id), 0
@@ -67,6 +67,8 @@ exports.getNomineeResults = async (req, res) => {
   }
 };
 
+
+// Get votes grouped by category and nominee
 // Get votes grouped by category and nominee
 exports.getVotesSummary = async (req, res) => {
   try {
@@ -77,40 +79,27 @@ exports.getVotesSummary = async (req, res) => {
       return res.json(JSON.parse(cached));
     }
 
-
-      //    SELECT 
-      // c.id AS category_id,
-      // c.name AS category_name,
-      // n.id AS nominee_id,
-      // n.name AS nominee_name,
-      // COUNT(v.id) AS total_votes
-      // FROM nominees n
-      // JOIN categories c ON n.category_id = c.id
-      // LEFT JOIN votes v ON v.candidate_id = n.id
-      // GROUP BY c.id, n.id
-      // ORDER BY c.id, total_votes DESC
-
     // ✅ fetch from MySQL
     const [rows] = await db.promise().query(`
        SELECT 
-       c.id AS category_id,
-       c.name AS category_name,
-       n.id AS nominee_id,
-       n.name AS nominee_name,
-       COUNT(v.id) AS total_votes,
-       ROUND(
-       (COUNT(v.id) / NULLIF(
-            (SELECT COUNT(v2.id) 
-             FROM votes v2 
-             JOIN nominees n2 ON v2.candidate_id = n2.id 
-             WHERE n2.category_id = c.id), 0
-          ) * 100), 2
-        ) AS percentage
-      FROM nominees n
-      JOIN categories c ON n.category_id = c.id
-      LEFT JOIN votes v ON v.candidate_id = n.id
-      GROUP BY c.id, n.id
-      ORDER BY c.id, total_votes DESC
+         c.id AS category_id,
+         c.name AS category_name,
+         n.id AS nominee_id,
+         n.name AS nominee_name,
+         IFNULL(SUM(v.vote_count), 0) AS total_votes,   -- ⭐ use SUM not COUNT
+         ROUND(
+           (IFNULL(SUM(v.vote_count), 0) / NULLIF(
+              (SELECT SUM(v2.vote_count) 
+               FROM votes v2 
+               JOIN nominees n2 ON v2.candidate_id = n2.id 
+               WHERE n2.category_id = c.id), 0
+            ) * 100), 2
+         ) AS percentage
+       FROM nominees n
+       JOIN categories c ON n.category_id = c.id
+       LEFT JOIN votes v ON v.candidate_id = n.id
+       GROUP BY c.id, n.id
+       ORDER BY c.id, total_votes DESC
     `);
 
     // cache results for 30s
