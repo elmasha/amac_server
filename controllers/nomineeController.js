@@ -41,13 +41,13 @@ exports.getCategories = async (req, res) => {
 // Create Nominee
 exports.createNominee = async (req, res) => {
   try {
-    const { name, category_id, description } = req.body;
+    const { name, category_id, description,location,church } = req.body;
     if (!name || !category_id)
       return res.status(400).json({ message: "Name and category_id are required" });
 
     const sql =
-      "INSERT INTO nominees (name, category_id, description) VALUES (?, ?, ?)";
-    db.query(sql, [name, category_id, description], async (err, result) => {
+      "INSERT INTO nominees (name, category_id, description,location,church) VALUES (?, ?, ?,?, ?)";
+    db.query(sql, [name, category_id, description,location,church], async (err, result) => {
       if (err) return res.status(500).json({ error: err.message });
 
       await redisClient.del(`nominees:${category_id}`); // Clear cache for category
