@@ -20,7 +20,9 @@ exports.getNomineeResults = async (req, res) => {
         c.name AS category_name,
         n.id AS nominee_id,
         n.name AS nominee_name,
-        IFNULL(SUM(v.vote_count), 0) AS total_votes,  -- ✅ use SUM instead of COUNT
+        n.county AS nominee_county,       -- 🟢 county
+        n.church AS nominee_church,       -- 🟢 church
+        IFNULL(SUM(v.vote_count), 0) AS total_votes,
         ROUND(
           (IFNULL(SUM(v.vote_count), 0) / NULLIF(
             (SELECT SUM(v2.vote_count) 
@@ -32,7 +34,7 @@ exports.getNomineeResults = async (req, res) => {
       FROM nominees n
       JOIN categories c ON n.category_id = c.id
       LEFT JOIN votes v ON v.candidate_id = n.id
-      GROUP BY c.id, c.name, n.id, n.name
+      GROUP BY c.id, c.name, n.id, n.name, n.county, n.church
       ORDER BY c.id, total_votes DESC
     `);
 
@@ -50,6 +52,8 @@ exports.getNomineeResults = async (req, res) => {
       category.nominees.push({
         nominee_id: row.nominee_id,
         nominee_name: row.nominee_name,
+        county: row.nominee_county,   // 🟢 include county
+        church: row.nominee_church,   // 🟢 include church
         total_votes: row.total_votes,
         percentage: row.percentage
       });
