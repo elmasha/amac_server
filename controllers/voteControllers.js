@@ -68,8 +68,7 @@ exports.getNomineeResults = async (req, res) => {
 };
 
 
-// Get votes grouped by category and nominee
-// Get votes grouped by category and nominee
+// Get votes grouped by category and nominee (with location & church)
 exports.getVotesSummary = async (req, res) => {
   try {
     // 🔑 check cache first
@@ -86,7 +85,9 @@ exports.getVotesSummary = async (req, res) => {
          c.name AS category_name,
          n.id AS nominee_id,
          n.name AS nominee_name,
-         IFNULL(SUM(v.vote_count), 0) AS total_votes,   -- ⭐ use SUM not COUNT
+         n.location,
+         n.church,
+         IFNULL(SUM(v.vote_count), 0) AS total_votes,   -- ⭐ SUM instead of COUNT
          ROUND(
            (IFNULL(SUM(v.vote_count), 0) / NULLIF(
               (SELECT SUM(v2.vote_count) 
@@ -98,7 +99,7 @@ exports.getVotesSummary = async (req, res) => {
        FROM nominees n
        JOIN categories c ON n.category_id = c.id
        LEFT JOIN votes v ON v.candidate_id = n.id
-       GROUP BY c.id, n.id
+       GROUP BY c.id, c.name, n.id, n.name, n.location, n.church
        ORDER BY c.id, total_votes DESC
     `);
 
