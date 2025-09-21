@@ -6,6 +6,6 @@ router.get("/results", getResults);
 router.get("/getVotes", getVotes);
 router.get("/summary", getVotesSummary);
 router.get("/resultsNominees", getNomineeResults);
-router.get("/summary/:categoryId", getVotesByCategoryId);
+router.get("/summaryCat/:categoryId", getVotesByCategoryId);
 
 module.exports = router;
