@@ -203,7 +203,6 @@ router.post(
     "/mpesa_stk_push/query",
     access,
     _urlencoded,
-    middleware,
     function(req, res, next) {
         let _checkoutRequestId = req.body.checkoutRequestId;
 
