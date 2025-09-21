@@ -198,4 +198,64 @@ router.post("/callback", async function (req, res) {
   }
 });
 
+
+router.post(
+    "/mpesa_stk_push/query",
+    access,
+    _urlencoded,
+    middleware,
+    function(req, res, next) {
+        let _checkoutRequestId = req.body.checkoutRequestId;
+
+        auth = "Bearer " + req.access_token;
+
+        let endpoint = "https://sandbox.safaricom.co.ke/mpesa/stkpushquery/v1/query";
+        let _shortCode = "174379";
+        let _passKey =
+            "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919";
+        const timeStamp = new Date()
+            .toISOString()
+            .replace(/[^0-9]/g, "")
+            .slice(0, -3);
+        const password = Buffer.from(
+            `${_shortCode}${_passKey}${timeStamp}`
+        ).toString("base64");
+
+        request({
+                url: endpoint,
+                method: "POST",
+                headers: {
+                    Authorization: auth,
+                },
+
+                json: {
+                    BusinessShortCode: _shortCode,
+                    Password: password,
+                    Timestamp: timeStamp,
+                    CheckoutRequestID: _checkoutRequestId,
+                },
+            },
+            function(error, response, body) {
+                if (error) {
+                    console.log(error);
+                    res.status(404).json(body);
+                } else {
+                    var resDesc = body.ResponseDescription;
+
+                    if (res.status(200)) {
+                        res.status(200).json(body);
+                        var resDesc = body.ResponseDescription;
+                        var resultDesc = body.ResultDesc;
+                        console.log("Query Body", body);
+                    }
+
+                    next();
+                }
+            }
+        );
+    }
+);
+
+
+
 module.exports = router;
