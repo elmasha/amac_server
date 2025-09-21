@@ -44,7 +44,7 @@ exports.getCategories = async (req, res) => {
 // Get nominees with votes & percentage
 exports.getNomineeList = async (req, res) => {
   try {
-    const cacheKey = "nominees:list:votes";
+    const cacheKey = "nominees";
     const cached = await redisClient.get(cacheKey);
     if (cached) {
       return res.json(JSON.parse(cached));
