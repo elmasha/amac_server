@@ -118,6 +118,55 @@ exports.getVotesSummary = async (req, res) => {
 };
 
 
+// Get votes grouped by category and nominee (with location & church) by categoryId
+exports.getVotesSummaryByCategory = async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+    const cacheKey = `votes:summary:${categoryId}`;
+
+    // 🔑 check cache first
+    const cached = await redisClient.get(cacheKey);
+    if (cached) {
+      return res.json(JSON.parse(cached));
+    }
+
+    // ✅ fetch from MySQL filtered by categoryId
+    const [rows] = await db.promise().query(`
+       SELECT 
+         c.id AS category_id,
+         c.name AS category_name,
+         n.id AS nominee_id,
+         n.name AS nominee_name,
+         n.location,
+         n.church,
+         IFNULL(SUM(v.vote_count), 0) AS total_votes,   -- ⭐ SUM instead of COUNT
+         ROUND(
+           (IFNULL(SUM(v.vote_count), 0) / NULLIF(
+              (SELECT SUM(v2.vote_count) 
+               FROM votes v2 
+               JOIN nominees n2 ON v2.candidate_id = n2.id 
+               WHERE n2.category_id = c.id), 0
+            ) * 100), 2
+         ) AS percentage
+       FROM nominees n
+       JOIN categories c ON n.category_id = c.id
+       LEFT JOIN votes v ON v.candidate_id = n.id
+       WHERE c.id = ?
+       GROUP BY c.id, c.name, n.id, n.name, n.location, n.church
+       ORDER BY total_votes DESC
+    `, [categoryId]);
+
+    // cache results for 30s
+    await redisClient.setEx(cacheKey, 30, JSON.stringify(rows));
+
+    res.json(rows);
+  } catch (err) {
+    console.error("❌ Error fetching votes:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+
 
 // Get votes by a specific category ID
 exports.getVotesByCategoryId = async (req, res) => {
