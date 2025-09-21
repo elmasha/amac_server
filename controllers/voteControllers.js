@@ -118,6 +118,90 @@ exports.getVotesSummary = async (req, res) => {
 };
 
 
+
+// 🟢 Live Results API (with category_id optional filter)
+exports.getLiveResults = async (req, res) => {
+  try {
+    const { category_id } = req.query; // optional filter
+
+    // cache key (unique per category if provided)
+    const cacheKey = category_id ? `live_results:${category_id}` : `live_results:all`;
+    const cached = await redisClient.get(cacheKey);
+    if (cached) {
+      return res.json(JSON.parse(cached));
+    }
+
+    // build query
+    let sql = `
+      SELECT 
+        c.id AS category_id,
+        c.name AS category_name,
+        n.id AS nominee_id,
+        n.name AS nominee_name,
+        n.location,
+        n.church,
+        IFNULL(SUM(v.vote_count), 0) AS total_votes,
+        ROUND(
+          (IFNULL(SUM(v.vote_count), 0) / NULLIF(
+            (SELECT SUM(v2.vote_count) 
+             FROM votes v2 
+             JOIN nominees n2 ON v2.candidate_id = n2.id 
+             WHERE n2.category_id = c.id), 0
+          ) * 100), 2
+        ) AS percentage
+      FROM nominees n
+      JOIN categories c ON n.category_id = c.id
+      LEFT JOIN votes v ON v.candidate_id = n.id
+    `;
+
+    if (category_id) {
+      sql += ` WHERE c.id = ? `;
+    }
+
+    sql += `
+      GROUP BY c.id, c.name, n.id, n.name, n.location, n.church
+      ORDER BY c.id, total_votes DESC
+    `;
+
+    const [rows] = await db.promise().query(sql, category_id ? [category_id] : []);
+
+    // group nominees under categories
+    const results = rows.reduce((acc, row) => {
+      let category = acc.find(c => c.category_id === row.category_id);
+      if (!category) {
+        category = {
+          category_id: row.category_id,
+          category_name: row.category_name,
+          total_votes: 0,
+          nominees: []
+        };
+        acc.push(category);
+      }
+      category.total_votes += row.total_votes;
+      category.nominees.push({
+        nominee_id: row.nominee_id,
+        nominee_name: row.nominee_name,
+        location: row.location,
+        church: row.church,
+        total_votes: row.total_votes,
+        percentage: row.percentage
+      });
+      return acc;
+    }, []);
+
+    // save in redis for 10s
+    await redisClient.setEx(cacheKey, 10, JSON.stringify(results));
+
+    res.json(results);
+  } catch (err) {
+    console.error("❌ Error fetching live results:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+
+
+
 // Get votes grouped by category and nominee (with location & church) by categoryId
 exports.getVotesSummaryByCategory = async (req, res) => {
   try {
