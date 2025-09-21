@@ -38,6 +38,55 @@ exports.getCategories = async (req, res) => {
   }
 };
 
+
+
+
+// Get nominees with votes & percentage
+exports.getNomineeList = async (req, res) => {
+  try {
+    const cacheKey = "nominees:list:votes";
+    const cached = await redisClient.get(cacheKey);
+    if (cached) {
+      return res.json(JSON.parse(cached));
+    }
+
+    const [rows] = await db.promise().query(`
+      SELECT 
+        n.id AS nominee_id,
+        n.name AS nominee_name,
+        n.location,
+        n.church,
+        c.id AS category_id,
+        c.name AS category_name,
+        IFNULL(SUM(v.vote_count), 0) AS total_votes,
+        ROUND(
+          (IFNULL(SUM(v.vote_count), 0) / NULLIF(
+            (SELECT SUM(v2.vote_count) 
+             FROM votes v2 
+             JOIN nominees n2 ON v2.candidate_id = n2.id 
+             WHERE n2.category_id = c.id), 0
+          ) * 100), 2
+        ) AS percentage
+      FROM nominees n
+      JOIN categories c ON n.category_id = c.id
+      LEFT JOIN votes v ON v.candidate_id = n.id
+      GROUP BY n.id, n.name, n.location, n.church, c.id, c.name
+      ORDER BY c.id, total_votes DESC
+    `);
+
+    await redisClient.setEx(cacheKey, 60, JSON.stringify(rows));
+
+    res.json(rows);
+  } catch (err) {
+    console.error("❌ Error fetching nominee list with votes:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+
+
+
+
 // Create Nominee
 exports.createNominee = async (req, res) => {
   try {
