@@ -117,6 +117,71 @@ exports.getVotesSummary = async (req, res) => {
   }
 };
 
+
+
+// Get votes by a specific category ID
+exports.getVotesByCategoryId = async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+    const cacheKey = `votes:summary:${categoryId}`;
+    const cached = await redisClient.get(cacheKey);
+    if (cached) {
+      return res.json(JSON.parse(cached));
+    }
+
+    const [rows] = await db.promise().query(`
+      SELECT 
+        c.id AS category_id,
+        c.name AS category_name,
+        n.id AS nominee_id,
+        n.name AS nominee_name,
+        n.location,
+        n.church,
+        IFNULL(SUM(v.vote_count), 0) AS total_votes,
+        ROUND(
+          (IFNULL(SUM(v.vote_count), 0) / NULLIF(
+            (SELECT SUM(v2.vote_count) 
+             FROM votes v2 
+             JOIN nominees n2 ON v2.candidate_id = n2.id 
+             WHERE n2.category_id = c.id), 0
+          ) * 100), 2
+        ) AS percentage
+      FROM nominees n
+      JOIN categories c ON n.category_id = c.id
+      LEFT JOIN votes v ON v.candidate_id = n.id
+      WHERE c.id = ?
+      GROUP BY c.id, c.name, n.id, n.name, n.location, n.church
+      ORDER BY total_votes DESC
+    `, [categoryId]);
+
+    if (!rows.length) {
+      return res.status(404).json({ message: "Category not found or no votes" });
+    }
+
+    const result = {
+      category_id: rows[0].category_id,
+      category_name: rows[0].category_name,
+      nominees: rows.map(r => ({
+        nominee_id: r.nominee_id,
+        nominee_name: r.nominee_name,
+        location: r.location,
+        church: r.church,
+        total_votes: r.total_votes,
+        percentage: r.percentage
+      }))
+    };
+
+    await redisClient.setEx(cacheKey, 30, JSON.stringify(result));
+    res.json(result);
+  } catch (err) {
+    console.error("❌ Error fetching votes by category:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+
+
+
 exports.getResults = async (req, res) => {
   try {
     const cacheKey = "election_results";
