@@ -117,6 +117,125 @@ exports.getVotesSummary = async (req, res) => {
   }
 };
 
+const CACHE_TTL = 10; // seconds - cache lifetime
+
+// Helper to round to 2 decimals and return number
+function round2(n) {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+/**
+ * GET /api/results/overview
+ * GET /api/results/overview/:categoryId
+ *
+ * Returns:
+ * [
+ *   {
+ *     category_id,
+ *     category_name,
+ *     total_votes,
+ *     nominees: [
+ *       { nominee_id, nominee_name, location, church, votes, percentage, is_leader }
+ *     ],
+ *     lastFetchedAt
+ *   },
+ *   ...
+ * ]
+ */
+exports.getOverview = async (req, res) => {
+  try {
+    const categoryId = req.params.categoryId || null;
+    const cacheKey = categoryId ? `votes:${categoryId}` : `votes`;
+
+    // try cache
+    const cached = await redisClient.get(cacheKey);
+    if (cached) {
+      return res.json(JSON.parse(cached));
+    }
+
+    // Fetch votes per nominee (optionally filtered by category)
+    const sql = `
+      SELECT
+        c.id AS category_id,
+        c.name AS category_name,
+        n.id AS nominee_id,
+        n.name AS nominee_name,
+        n.location,
+        n.church,
+        IFNULL(SUM(v.vote_count), 0) AS votes
+      FROM nominees n
+      JOIN categories c ON n.category_id = c.id
+      LEFT JOIN votes v ON v.candidate_id = n.id
+      ${categoryId ? "WHERE c.id = ?" : ""}
+      GROUP BY n.id, n.name, n.location, n.church, c.id, c.name
+      ORDER BY c.id, votes DESC, n.name ASC
+    `;
+
+    const params = categoryId ? [categoryId] : [];
+    const [rows] = await db.promise().query(sql, params);
+
+    // Group by category and compute totals + percentages + leader flag
+    const categoriesMap = new Map();
+
+    for (const r of rows) {
+      const catId = r.category_id;
+      if (!categoriesMap.has(catId)) {
+        categoriesMap.set(catId, {
+          category_id: catId,
+          category_name: r.category_name,
+          total_votes: 0,
+          nominees: []
+        });
+      }
+      const cat = categoriesMap.get(catId);
+
+      const nominee = {
+        nominee_id: r.nominee_id,
+        nominee_name: r.nominee_name,
+        location: r.location,
+        church: r.church,
+        votes: Number(r.votes)
+      };
+
+      cat.nominees.push(nominee);
+      cat.total_votes += Number(r.votes);
+    }
+
+    // Determine percentage and leader(s) for each category
+    const results = [];
+    for (const cat of categoriesMap.values()) {
+      // find max votes to mark leader(s)
+      let maxVotes = 0;
+      for (const n of cat.nominees) {
+        if (n.votes > maxVotes) maxVotes = n.votes;
+      }
+
+      // compute percentage and mark leader(s)
+      for (const n of cat.nominees) {
+        n.percentage = cat.total_votes > 0 ? round2((n.votes / cat.total_votes) * 100) : 0;
+        n.is_leader = n.votes === maxVotes && maxVotes > 0;
+      }
+
+      // lastFetchedAt: when we generated this payload (frontend will display "Updated every Xs")
+      cat.lastFetchedAt = new Date().toISOString();
+
+      // optionally sort nominees by votes desc (already mostly sorted by SQL)
+      cat.nominees.sort((a, b) => b.votes - a.votes || a.nominee_name.localeCompare(b.nominee_name));
+
+      results.push(cat);
+    }
+
+    // If there are categories with no nominees in DB, they won't appear — that's expected.
+    // Cache and return
+    await redisClient.setEx(cacheKey, CACHE_TTL, JSON.stringify(results));
+
+    return res.json(results);
+  } catch (err) {
+    console.error("❌ Error in getOverview:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
 
 
 // 🟢 Live Results API (with category_id optional filter)
