@@ -32,13 +32,13 @@ exports.getNomineeResults = async (req, res) => {
           ) * 100), 2
         ) AS percentage
       FROM nominees n
-      JOIN categories c ON n.category_id = c.id
+      JOIN votes c ON n.category_id = c.id
       LEFT JOIN votes v ON v.candidate_id = n.id
       GROUP BY c.id, c.name, n.id, n.name, n.county, n.church
       ORDER BY c.id, total_votes DESC
     `);
 
-    // 3️⃣ Group nominees under categories
+    // 3️⃣ Group nominees under votes
     const results = rows.reduce((acc, row) => {
       let category = acc.find(c => c.category_id === row.category_id);
       if (!category) {
@@ -101,7 +101,7 @@ exports.getVotesSummary = async (req, res) => {
             ) * 100), 2
          ) AS percentage
        FROM nominees n
-       JOIN categories c ON n.category_id = c.id
+       JOIN votes c ON n.category_id = c.id
        LEFT JOIN votes v ON v.candidate_id = n.id
        GROUP BY c.id, c.name, n.id, n.name, n.location, n.church
        ORDER BY c.id, total_votes DESC
@@ -124,24 +124,6 @@ function round2(n) {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
-/**
- * GET /api/results/overview
- * GET /api/results/overview/:categoryId
- *
- * Returns:
- * [
- *   {
- *     category_id,
- *     category_name,
- *     total_votes,
- *     nominees: [
- *       { nominee_id, nominee_name, location, church, votes, percentage, is_leader }
- *     ],
- *     lastFetchedAt
- *   },
- *   ...
- * ]
- */
 exports.getOverview = async (req, res) => {
   try {
     const categoryId = req.params.categoryId || null;
@@ -164,7 +146,7 @@ exports.getOverview = async (req, res) => {
         n.church,
         IFNULL(SUM(v.vote_count), 0) AS votes
       FROM nominees n
-      JOIN categories c ON n.category_id = c.id
+      JOIN votes c ON n.category_id = c.id
       LEFT JOIN votes v ON v.candidate_id = n.id
       ${categoryId ? "WHERE c.id = ?" : ""}
       GROUP BY n.id, n.name, n.location, n.church, c.id, c.name
@@ -175,19 +157,19 @@ exports.getOverview = async (req, res) => {
     const [rows] = await db.promise().query(sql, params);
 
     // Group by category and compute totals + percentages + leader flag
-    const categoriesMap = new Map();
+    const votesMap = new Map();
 
     for (const r of rows) {
       const catId = r.category_id;
-      if (!categoriesMap.has(catId)) {
-        categoriesMap.set(catId, {
+      if (!votesMap.has(catId)) {
+        votesMap.set(catId, {
           category_id: catId,
           category_name: r.category_name,
           total_votes: 0,
           nominees: []
         });
       }
-      const cat = categoriesMap.get(catId);
+      const cat = votesMap.get(catId);
 
       const nominee = {
         nominee_id: r.nominee_id,
@@ -203,7 +185,7 @@ exports.getOverview = async (req, res) => {
 
     // Determine percentage and leader(s) for each category
     const results = [];
-    for (const cat of categoriesMap.values()) {
+    for (const cat of votesMap.values()) {
       // find max votes to mark leader(s)
       let maxVotes = 0;
       for (const n of cat.nominees) {
@@ -225,7 +207,7 @@ exports.getOverview = async (req, res) => {
       results.push(cat);
     }
 
-    // If there are categories with no nominees in DB, they won't appear — that's expected.
+    // If there are votes with no nominees in DB, they won't appear — that's expected.
     // Cache and return
     await redisClient.setEx(cacheKey, CACHE_TTL, JSON.stringify(results));
 
@@ -269,7 +251,7 @@ exports.getLiveResults = async (req, res) => {
           ) * 100), 2
         ) AS percentage
       FROM nominees n
-      JOIN categories c ON n.category_id = c.id
+      JOIN votes c ON n.category_id = c.id
       LEFT JOIN votes v ON v.candidate_id = n.id
     `;
 
@@ -284,7 +266,7 @@ exports.getLiveResults = async (req, res) => {
 
     const [rows] = await db.promise().query(sql, category_id ? [category_id] : []);
 
-    // group nominees under categories
+    // group nominees under votes
     const results = rows.reduce((acc, row) => {
       let category = acc.find(c => c.category_id === row.category_id);
       if (!category) {
@@ -352,7 +334,7 @@ exports.getVotesSummaryByCategory = async (req, res) => {
             ) * 100), 2
          ) AS percentage
        FROM nominees n
-       JOIN categories c ON n.category_id = c.id
+       JOIN votes c ON n.category_id = c.id
        LEFT JOIN votes v ON v.candidate_id = n.id
        WHERE c.id = ?
        GROUP BY c.id, c.name, n.id, n.name, n.location, n.church
@@ -399,7 +381,7 @@ exports.getVotesByCategoryId = async (req, res) => {
           ) * 100), 2
         ) AS percentage
       FROM nominees n
-      JOIN categories c ON n.category_id = c.id
+      JOIN votes c ON n.category_id = c.id
       LEFT JOIN votes v ON v.candidate_id = n.id
       WHERE c.id = ?
       GROUP BY c.id, c.name, n.id, n.name, n.location, n.church
@@ -454,7 +436,7 @@ exports.getResults = async (req, res) => {
           n.name AS nominee_name,
           COUNT(v.id) AS vote_count
       FROM nominees n
-      LEFT JOIN categories cat ON n.category_id = cat.id
+      LEFT JOIN votes cat ON n.category_id = cat.id
       LEFT JOIN votes v ON v.nominee_id = n.id
       GROUP BY cat.id, cat.name, n.id, n.name
       ORDER BY cat.id, vote_count DESC
@@ -493,7 +475,7 @@ exports.getResults = async (req, res) => {
 
 exports.getVotes = async (req, res) => {
   try {
-    const cacheKey = "votes_per_category_nominee";
+    const cacheKey = "votes";
 
     // 1️⃣ Try Redis cache first
     const cached = await redisClient.get(cacheKey);
@@ -510,7 +492,7 @@ exports.getVotes = async (req, res) => {
           n.id AS nominee_id,
           n.name AS nominee_name,
           COUNT(v.id) AS vote_count
-      FROM categories cat
+      FROM votes cat
       JOIN nominees n ON n.category_id = cat.id
       LEFT JOIN votes v ON v.nominee_id = n.id
       GROUP BY cat.id, cat.name, n.id, n.name
@@ -545,5 +527,24 @@ exports.getVotes = async (req, res) => {
   } catch (err) {
     console.error("❌ Error fetching votes:", err);
     res.status(500).json({ error: "Server error" });
+  }
+};
+
+// Get votes (with Redis cache)
+exports.getAllvotes = async (req, res) => {
+  try {
+    const cacheData = await redisClient.get("votes");
+    if (cacheData) {
+      return res.json(JSON.parse(cacheData));
+    }
+
+    db.query("SELECT * FROM votes", async (err, results) => {
+      if (err) return res.status(500).json({ error: err.message });
+
+      await redisClient.setEx("votes", 3600, JSON.stringify(results)); // Cache for 1hr
+      res.json(results);
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 };
