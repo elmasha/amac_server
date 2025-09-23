@@ -548,3 +548,155 @@ exports.getAllvotes = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+
+exports.getDashboardTotals = async (req, res) => {
+  try {
+    const cacheKey = "votes:totals";
+    const cached = await redisClient.get(cacheKey);
+
+    if (cached) {
+      console.log("✅ Dashboard Totals served from Redis");
+      return res.json(JSON.parse(cached));
+    }
+
+    const [[votes]] = await db.promise().query(`SELECT IFNULL(SUM(vote_count),0) AS total_votes FROM votes`);
+    const [[payments]] = await db.promise().query(`SELECT IFNULL(SUM(amount),0) AS total_revenue FROM payments`);
+    const [[nominees]] = await db.promise().query(`SELECT COUNT(id) AS total_nominees FROM nominees`);
+    const [[categories]] = await db.promise().query(`SELECT COUNT(id) AS total_categories FROM categories`);
+
+    const data = {
+      total_votes: votes.total_votes,
+      total_revenue: payments.total_revenue,
+      total_nominees: nominees.total_nominees,
+      total_categories: categories.total_categories
+    };
+
+    await redisClient.setEx(cacheKey, 30, JSON.stringify(data));
+    res.json(data);
+  } catch (err) {
+    console.error("❌ Error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+
+exports.getPaymentsSummary = async (req, res) => {
+  try {
+    const cacheKey = "votes:payments_summary";
+    const cached = await redisClient.get(cacheKey);
+
+    if (cached) {
+      console.log("✅ Payments Summary served from Redis");
+      return res.json(JSON.parse(cached));
+    }
+
+    const [rows] = await db.promise().query(`
+      SELECT 
+        payment_method,
+        COUNT(id) AS total_transactions,
+        SUM(amount) AS total_amount
+      FROM payments
+      GROUP BY payment_method
+    `);
+
+    await redisClient.setEx(cacheKey, 120, JSON.stringify(rows));
+    res.json(rows);
+  } catch (err) {
+    console.error("❌ Error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+
+exports.getVotingActivity = async (req, res) => {
+  try {
+    const cacheKey = "votes:voting_activity";
+    const cached = await redisClient.get(cacheKey);
+
+    if (cached) {
+      console.log("✅ Voting Activity served from Redis");
+      return res.json(JSON.parse(cached));
+    }
+
+    const [rows] = await db.promise().query(`
+      SELECT 
+        DATE(v.created_at) AS vote_date,
+        SUM(v.vote_count) AS total_votes
+      FROM votes v
+      GROUP BY DATE(v.created_at)
+      ORDER BY vote_date ASC
+    `);
+
+    await redisClient.setEx(cacheKey, 120, JSON.stringify(rows));
+    res.json(rows);
+  } catch (err) {
+    console.error("❌ Error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+
+
+exports.getTopNominees = async (req, res) => {
+  try {
+    const cacheKey = "votes:top_nominees";
+    const cached = await redisClient.get(cacheKey);
+
+    if (cached) {
+      console.log("✅ Top Nominees served from Redis");
+      return res.json(JSON.parse(cached));
+    }
+
+    const [rows] = await db.promise().query(`
+      SELECT 
+        c.id AS category_id,
+        c.name AS category_name,
+        n.id AS nominee_id,
+        n.name AS nominee_name,
+        IFNULL(SUM(v.vote_count), 0) AS total_votes
+      FROM nominees n
+      JOIN categories c ON n.category_id = c.id
+      LEFT JOIN votes v ON v.candidate_id = n.id
+      GROUP BY c.id, c.name, n.id, n.name
+      ORDER BY c.id, total_votes DESC
+    `);
+
+    await redisClient.setEx(cacheKey, 60, JSON.stringify(rows));
+    res.json(rows);
+  } catch (err) {
+    console.error("❌ Error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+
+exports.getVotesPerCategory = async (req, res) => {
+  try {
+    const cacheKey = "votes:votes_per_category";
+    const cached = await redisClient.get(cacheKey);
+
+    if (cached) {
+      console.log("✅ Votes per Category served from Redis");
+      return res.json(JSON.parse(cached));
+    }
+
+    const [rows] = await db.promise().query(`
+      SELECT 
+        c.id AS category_id,
+        c.name AS category_name,
+        IFNULL(SUM(v.vote_count), 0) AS total_votes
+      FROM categories c
+      LEFT JOIN nominees n ON n.category_id = c.id
+      LEFT JOIN votes v ON v.candidate_id = n.id
+      GROUP BY c.id, c.name
+      ORDER BY total_votes DESC
+    `);
+
+    await redisClient.setEx(cacheKey, 60, JSON.stringify(rows));
+    res.json(rows);
+  } catch (err) {
+    console.error("❌ Error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
