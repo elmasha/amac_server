@@ -606,10 +606,10 @@ exports.getPaymentsSummary = async (req, res) => {
   }
 };
 
-
+// Voting activity grouped per hour
 exports.getVotingActivity = async (req, res) => {
   try {
-    const cacheKey = "votes:activity";
+    const cacheKey = "votes:activity:hourly";
     const cached = await redisClient.get(cacheKey);
     if (cached) {
       return res.json(JSON.parse(cached));
@@ -617,22 +617,22 @@ exports.getVotingActivity = async (req, res) => {
 
     const [rows] = await db.promise().query(`
       SELECT 
-        DATE(v.vote_date) AS vote_date,
+        HOUR(v.vote_date) AS vote_hour,
         SUM(v.vote_count) AS total_votes
       FROM votes v
-      GROUP BY DATE(v.vote_date)
-      ORDER BY vote_date ASC
+      GROUP BY HOUR(v.vote_date)
+      ORDER BY vote_hour ASC
     `);
 
+    // cache for 60s
     await redisClient.setEx(cacheKey, 60, JSON.stringify(rows));
+
     res.json(rows);
   } catch (err) {
     console.error("❌ Error fetching voting activity:", err.message);
     res.status(500).json({ error: "Server error" });
   }
 };
-
-
 
 exports.getTopNominees = async (req, res) => {
   try {
@@ -665,7 +665,6 @@ exports.getTopNominees = async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 };
-
 
 exports.getVotesPerCategory = async (req, res) => {
   try {
