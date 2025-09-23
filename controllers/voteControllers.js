@@ -559,7 +559,7 @@ exports.getDashboardTotals = async (req, res) => {
     }
 
     const [[votes]] = await db.promise().query(`SELECT IFNULL(SUM(vote_count),0) AS total_votes FROM votes`);
-    const [[payments]] = await db.promise().query(`SELECT IFNULL(SUM(amount),0) AS total_revenue FROM payments`);
+    const [[payments]] = await db.promise().query(`SELECT IFNULL(SUM(amount_paid),0) AS total_revenue FROM payments`);
     const [[nominees]] = await db.promise().query(`SELECT COUNT(id) AS total_nominees FROM nominees`);
     const [[categories]] = await db.promise().query(`SELECT COUNT(id) AS total_categories FROM categories`);
 
