@@ -414,8 +414,6 @@ exports.getVotesByCategoryId = async (req, res) => {
 };
 
 
-
-
 exports.getResults = async (req, res) => {
   try {
     const cacheKey = "election_results";
