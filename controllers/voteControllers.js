@@ -593,7 +593,7 @@ exports.getPaymentsSummary = async (req, res) => {
       SELECT 
         payment_method,
         COUNT(id) AS total_transactions,
-        SUM(amount) AS total_amount
+        SUM(amount_paid) AS total_amount
       FROM payments
       GROUP BY payment_method
     `);
@@ -609,27 +609,25 @@ exports.getPaymentsSummary = async (req, res) => {
 
 exports.getVotingActivity = async (req, res) => {
   try {
-    const cacheKey = "votes:voting_activity";
+    const cacheKey = "votes:activity";
     const cached = await redisClient.get(cacheKey);
-
     if (cached) {
-      console.log("✅ Voting Activity served from Redis");
       return res.json(JSON.parse(cached));
     }
 
     const [rows] = await db.promise().query(`
       SELECT 
-        DATE(v.created_at) AS vote_date,
+        DATE(v.vote_date) AS vote_date,
         SUM(v.vote_count) AS total_votes
       FROM votes v
-      GROUP BY DATE(v.created_at)
+      GROUP BY DATE(v.vote_date)
       ORDER BY vote_date ASC
     `);
 
-    await redisClient.setEx(cacheKey, 120, JSON.stringify(rows));
+    await redisClient.setEx(cacheKey, 60, JSON.stringify(rows));
     res.json(rows);
   } catch (err) {
-    console.error("❌ Error:", err);
+    console.error("❌ Error fetching voting activity:", err.message);
     res.status(500).json({ error: "Server error" });
   }
 };
