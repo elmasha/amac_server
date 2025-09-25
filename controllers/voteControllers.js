@@ -85,26 +85,18 @@ exports.getVotesSummary = async (req, res) => {
     // ✅ fetch from MySQL
     const [rows] = await db.promise().query(`
        SELECT 
-         c.id AS category_id,
-         c.name AS category_name,
-         n.id AS nominee_id,
-         n.name AS nominee_name,
-         n.location,
-         n.church,
-         IFNULL(SUM(v.vote_count), 0) AS total_votes,   -- ⭐ SUM instead of COUNT
-         ROUND(
-           (IFNULL(SUM(v.vote_count), 0) / NULLIF(
-              (SELECT SUM(v2.vote_count) 
-               FROM votes v2 
-               JOIN nominees n2 ON v2.candidate_id = n2.id 
-               WHERE n2.category_id = c.id), 0
-            ) * 100), 2
-         ) AS percentage
-       FROM nominees n
-       JOIN votes c ON n.category_id = c.id
-       LEFT JOIN votes v ON v.candidate_id = n.id
-       GROUP BY c.id, c.name, n.id, n.name, n.location, n.church
-       ORDER BY c.id, total_votes DESC
+        c.id AS category_id,
+        c.name AS category_name,
+        n.id AS nominee_id,
+        n.name AS nominee_name,
+        n.location,
+        n.church,
+        IFNULL(SUM(v.vote_count), 0) AS votes
+        FROM nominees n
+        JOIN categories c ON n.category_id = c.id   -- ✅ FIXED
+        LEFT JOIN votes v ON v.candidate_id = n.id
+        GROUP BY n.id, n.name, n.location, n.church, c.id, c.name
+        ORDER BY c.id, votes DESC, n.name ASC
     `);
 
     // cache results for 30s
