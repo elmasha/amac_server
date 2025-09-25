@@ -73,18 +73,18 @@ exports.getNomineeResults = async (req, res) => {
 
 
 // Get votes grouped by category and nominee (with location & church)
+
+
 exports.getVotesSummary = async (req, res) => {
   try {
-    // 🔑 check cache first
     const cacheKey = "votes:summary";
     const cached = await redisClient.get(cacheKey);
     if (cached) {
       return res.json(JSON.parse(cached));
     }
 
-    // ✅ fetch from MySQL
     const [rows] = await db.promise().query(`
-       SELECT 
+      SELECT 
         c.id AS category_id,
         c.name AS category_name,
         n.id AS nominee_id,
@@ -92,23 +92,58 @@ exports.getVotesSummary = async (req, res) => {
         n.location,
         n.church,
         IFNULL(SUM(v.vote_count), 0) AS votes
-        FROM nominees n
-        JOIN categories c ON n.category_id = c.id   -- ✅ FIXED
-        LEFT JOIN votes v ON v.candidate_id = n.id
-        GROUP BY n.id, n.name, n.location, n.church, c.id, c.name
-        ORDER BY c.id, votes DESC, n.name ASC
+      FROM nominees n
+      JOIN categories c ON n.category_id = c.id
+      LEFT JOIN votes v ON v.candidate_id = n.id
+      GROUP BY n.id, n.name, n.location, n.church, c.id, c.name
+      ORDER BY c.id, votes DESC, n.name ASC
     `);
 
-    // cache results for 30s
-    await redisClient.setEx(cacheKey, 30, JSON.stringify(rows));
+    // 🧮 Group nominees by category
+    const categoryMap = new Map();
 
-    res.json(rows);
+    for (const row of rows) {
+      if (!categoryMap.has(row.category_id)) {
+        categoryMap.set(row.category_id, {
+          category_id: row.category_id,
+          category_name: row.category_name,
+          total_votes: 0,
+          nominees: []
+        });
+      }
+      const cat = categoryMap.get(row.category_id);
+
+      const nominee = {
+        nominee_id: row.nominee_id,
+        nominee_name: row.nominee_name,
+        location: row.location,
+        church: row.church,
+        votes: Number(row.votes)
+      };
+
+      cat.nominees.push(nominee);
+      cat.total_votes += nominee.votes;
+    }
+
+    // 🎯 Add percentages
+    const results = [];
+    for (const cat of categoryMap.values()) {
+      for (const nominee of cat.nominees) {
+        nominee.percentage =
+          cat.total_votes > 0 ? round2((nominee.votes / cat.total_votes) * 100) : 0;
+      }
+      results.push(cat);
+    }
+
+    // cache for 30s
+    await redisClient.setEx(cacheKey, 30, JSON.stringify(results));
+
+    res.json(results);
   } catch (err) {
     console.error("❌ Error fetching votes:", err.message);
     res.status(500).json({ error: "Server error" });
   }
 };
-
 const CACHE_TTL = 10; // seconds - cache lifetime
 
 // Helper to round to 2 decimals and return number
