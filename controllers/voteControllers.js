@@ -225,16 +225,18 @@ exports.getLiveResults = async (req, res) => {
   try {
     const { category_id } = req.query; // optional filter
 
+    // cache key (unique per category if provided)
     const cacheKey = category_id ? `live_results:${category_id}` : `live_results:all`;
     const cached = await redisClient.get(cacheKey);
     if (cached) {
       return res.json(JSON.parse(cached));
     }
 
+    // build query
     let sql = `
       SELECT 
         c.id AS category_id,
-        c.category_name AS category_name,
+        c.name AS category_name,   -- ✅ fixed
         n.id AS nominee_id,
         n.name AS nominee_name,
         n.location,
@@ -258,13 +260,13 @@ exports.getLiveResults = async (req, res) => {
     }
 
     sql += `
-      GROUP BY c.id, c.category_name, n.id, n.name, n.location, n.church
+      GROUP BY c.id, c.name, n.id, n.name, n.location, n.church
       ORDER BY c.id, total_votes DESC
     `;
 
     const [rows] = await db.promise().query(sql, category_id ? [category_id] : []);
 
-    // group nominees under categories
+    // group nominees under votes
     const results = rows.reduce((acc, row) => {
       let category = acc.find(c => c.category_id === row.category_id);
       if (!category) {
@@ -288,6 +290,7 @@ exports.getLiveResults = async (req, res) => {
       return acc;
     }, []);
 
+    // save in redis for 10s
     await redisClient.setEx(cacheKey, 10, JSON.stringify(results));
 
     res.json(results);
@@ -296,7 +299,6 @@ exports.getLiveResults = async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 };
-
 
 
 // Get votes grouped by category and nominee (with location & church) by categoryId
