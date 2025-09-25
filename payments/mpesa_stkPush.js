@@ -203,7 +203,7 @@ router.post(
     "/mpesa_stk_push/query",access,function(req, res, next) {
         let _checkoutRequestId = req.body.checkoutRequestId;
 
-        auth = "Bearer " + req.access_token;
+       let auth = "Bearer " + req.access_token;
 
         let endpoint = "https://sandbox.safaricom.co.ke/mpesa/stkpushquery/v1/query";
         let _shortCode = "174379";
