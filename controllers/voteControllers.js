@@ -129,20 +129,20 @@ exports.getOverview = async (req, res) => {
 
     // Fetch votes per nominee (optionally filtered by category)
     const sql = `
-      SELECT
-        c.id AS category_id,
-        c.name AS category_name,
-        n.id AS nominee_id,
-        n.name AS nominee_name,
-        n.location,
-        n.church,
-        IFNULL(SUM(v.vote_count), 0) AS votes
-      FROM nominees n
-      JOIN votes c ON n.category_id = c.id
-      LEFT JOIN votes v ON v.candidate_id = n.id
-      ${categoryId ? "WHERE c.id = ?" : ""}
-      GROUP BY n.id, n.name, n.location, n.church, c.id, c.name
-      ORDER BY c.id, votes DESC, n.name ASC
+        SELECT
+          c.id AS category_id,
+          c.name AS category_name,
+          n.id AS nominee_id,
+          n.name AS nominee_name,
+          n.location,
+          n.church,
+          IFNULL(SUM(v.vote_count), 0) AS votes
+        FROM nominees n
+        JOIN categories c ON n.category_id = c.id   -- ✅ FIXED
+        LEFT JOIN votes v ON v.candidate_id = n.id
+        ${categoryId ? "WHERE c.id = ?" : ""}
+        GROUP BY n.id, n.name, n.location, n.church, c.id, c.name
+        ORDER BY c.id, votes DESC, n.name ASC
     `;
 
     const params = categoryId ? [categoryId] : [];
