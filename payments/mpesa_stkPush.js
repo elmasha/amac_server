@@ -200,10 +200,7 @@ router.post("/callback", async function (req, res) {
 
 
 router.post(
-    "/mpesa_stk_push/query",
-    access,
-    _urlencoded,
-    function(req, res, next) {
+    "/mpesa_stk_push/query",access,function(req, res, next) {
         let _checkoutRequestId = req.body.checkoutRequestId;
 
         auth = "Bearer " + req.access_token;
@@ -224,9 +221,8 @@ router.post(
                 url: endpoint,
                 method: "POST",
                 headers: {
-                    Authorization: auth,
+                    Authorization:  auth,
                 },
-
                 json: {
                     BusinessShortCode: _shortCode,
                     Password: password,
@@ -240,9 +236,9 @@ router.post(
                     res.status(404).json(body);
                 } else {
                     var resDesc = body.ResponseDescription;
-
+ res.status(200).json(body);
                     if (res.status(200)) {
-                        res.status(200).json(body);
+                       
                         var resDesc = body.ResponseDescription;
                         var resultDesc = body.ResultDesc;
                         console.log("Query Body", body);
