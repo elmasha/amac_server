@@ -4,7 +4,7 @@
   "description": "amac",
   "main": "server.js",
   "scripts": {
-    "start": "pm2 start ecosystem.config.js --env production"
+    "start": "nodemon server.js"
   },
   "keywords": [],
   "author": "elmasha",
